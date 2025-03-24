@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python 3.12
+# Install Python 3.12 and other tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     git \
@@ -24,9 +24,10 @@ WORKDIR /app
 # Clone the OmniParser repository
 RUN git clone https://github.com/microsoft/OmniParser.git /app
 
-# We need to downgrade Transformers version from what's in the requirements.txt as 4.50 hits an error
+# Downgrade Transformers version in requirements.txt (4.45.0 is required)
 RUN sed -i 's/transformers==.*$/transformers==4.45.0/g' /app/requirements.txt
 
+# Install Python dependencies
 RUN python3.12 -m pip install --upgrade pip && \
     python3.12 -m pip install --no-cache-dir -r /app/requirements.txt huggingface_hub
 
@@ -37,6 +38,9 @@ RUN mkdir -p /app/weights && \
             --repo-type model --include "$folder/*"; \
     done && \
     mv /app/weights/icon_caption /app/weights/icon_caption_florence
+
+# Remove the conflicting NVIDIA library file so the NVIDIA runtime can mount its version.
+RUN rm -f /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
 
 # Expose port for FastAPI
 EXPOSE 8000
