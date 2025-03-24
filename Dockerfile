@@ -1,35 +1,27 @@
-# Start from an NVIDIA CUDA base for GPU support (Ubuntu 22.04)
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
+# Start from an NVIDIA CUDA base with Python already included
+FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
 
+# Avoid interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python 3.12 and other tools
+# Install git and other dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
     git \
     wget \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3.12-dev python3.12-venv \
-    nvidia-cuda-toolkit \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pip
-RUN wget https://bootstrap.pypa.io/get-pip.py && \
-    python3.12 get-pip.py && \
-    rm get-pip.py
-
+# Create a working directory
 WORKDIR /app
 
-# Clone the OmniParser repository
+# Clone the repository
 RUN git clone https://github.com/microsoft/OmniParser.git /app
 
-# Downgrade Transformers version in requirements.txt (4.45.0 is required)
+# Modify requirements.txt to use transformers 4.45.0
 RUN sed -i 's/transformers==.*$/transformers==4.45.0/g' /app/requirements.txt
 
 # Install Python dependencies
-RUN python3.12 -m pip install --upgrade pip && \
-    python3.12 -m pip install --no-cache-dir -r /app/requirements.txt huggingface_hub
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r /app/requirements.txt huggingface_hub
 
 # Download OmniParser model weights from HF
 RUN mkdir -p /app/weights && \
@@ -39,16 +31,14 @@ RUN mkdir -p /app/weights && \
     done && \
     mv /app/weights/icon_caption /app/weights/icon_caption_florence
 
-# Remove the conflicting NVIDIA library file so the NVIDIA runtime can mount its version.
-RUN rm -f /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
-
 # Expose port for FastAPI
 EXPOSE 8000
 
-# Set environment variables for RunPod
+# Set environment variables
 ENV PYTHONPATH=/app
-ENV RUNPOD_DEBUG=true
 
+# Switch to the omniparserserver directory
 WORKDIR /app/omnitool/omniparserserver
 
-CMD ["python3.12", "-m", "omniparserserver", "--host", "0.0.0.0"]
+# Default command: run the server with host 0.0.0.0 to be accessible outside the container
+CMD ["python", "-m", "omniparserserver", "--host", "0.0.0.0"]
